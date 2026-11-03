@@ -1,0 +1,16 @@
+Bukti startup Mata Kuliah Service
+Sumber: keluaran terminal yang dibagikan pengguna.
+
+Bagian pertama log menampilkan:
+  File "/app/app.py", line 188, in init_db
+    db.session.rollback()
+RuntimeError: Working outside of application context.
+
+Keluaran yang sama kemudian mencatat:
+  INFO:*main*:Database mata kuliah siap
+  * Serving Flask app 'app'
+  * Running on http://127.0.0.1:5000
+  GET /matkul HTTP/1.1 200
+
+Interpretasi:
+Service akhirnya aktif dan melayani GET /matkul. Traceback startup tetap merupakan bug: rollback dipanggil setelah konteks Flask berakhir. Hapus pemanggilan rollback itu dari blok except pada init_db(), lalu rebuild service agar startup bersih.

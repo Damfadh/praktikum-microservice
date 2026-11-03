@@ -1,0 +1,29 @@
+Preflight pengujian integrasi
+Tanggal: 2026-11-03
+Direktori kerja: outputs/praktikum-microservice
+
+Perintah: docker --version
+Keluaran: Docker version 29.9.2, build a82e528
+
+Perintah: docker compose version
+Keluaran: Docker Compose version v5.6.1
+
+Perintah: docker compose ps
+Keluaran:
+failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.
+
+Upaya menyalakan Docker Desktop:
+Executable ditemukan dari shortcut di:
+C:/Users/damar/AppData/Local/Programs/DockerDesktop/Docker Desktop.exe
+Docker Desktop tidak membuat endpoint Docker Engine yang dapat dihubungi.
+
+Perintah: wsl --status
+Keluaran:
+Access is denied.
+Error code: Wsl/E_ACCESSDENIED
+
+Kesimpulan pada saat preflight:
+Docker Engine/WSL tidak tersedia untuk proses ini. Container tidak dapat dimulai pada saat itu. Tidak ada hasil API yang direkayasa atau disimulasikan.
+
+Pembaruan setelah preflight:
+Screenshot praktikum yang diterima kemudian memperlihatkan WSL selesai dipasang, Docker Desktop aktif, image telah dibangun, container telah dibuat, dan GET /mahasiswa serta GET /matkul memperoleh HTTP 200. Lihat berkas screenshot bernomor di folder ini. Screenshot tersebut tidak menunjukkan hasil 10 skenario CRUD/KRS secara lengkap.

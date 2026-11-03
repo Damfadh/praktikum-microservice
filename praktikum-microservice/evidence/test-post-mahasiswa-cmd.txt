@@ -1,0 +1,26 @@
+Percobaan skenario 1 dari CMD
+Sumber: keluaran terminal yang dibagikan pengguna.
+
+Perintah yang dicoba:
+curl.exe -i -X POST http://localhost:8080/mahasiswa -H "Content-Type: application/json" -d '{"nim":"2210001","nama":"Budi"}'
+
+Hasil aktual:
+HTTP/1.1 400 BAD REQUEST
+{"error":"nim wajib diisi"}
+
+Diagnosis:
+Perintah dijalankan di CMD, yang tidak memperlakukan kutip tunggal sebagai pembungkus argumen. Kutip tunggal terkirim sebagai bagian body sehingga JSON tidak terbaca.
+
+Perintah CMD yang benar untuk mengulang skenario:
+curl.exe -i -X POST http://localhost:8080/mahasiswa -H "Content-Type: application/json" --data-raw "{\"nim\":\"2210001\",\"nama\":\"Budi\"}"
+
+Hasil yang diharapkan pada percobaan ulang: HTTP 201 Created.
+
+Percobaan ulang yang benar:
+curl.exe -i -X POST http://localhost:8080/mahasiswa -H "Content-Type: application/json" --data-raw "{\"nim\":\"2210001\",\"nama\":\"Budi\"}"
+
+Hasil aktual:
+HTTP/1.1 201 CREATED
+{"angkatan":null,"email":null,"nama":"Budi","nim":"2210001"}
+
+Kesimpulan: skenario tambah mahasiswa lulus. Data berhasil disimpan dan dikembalikan oleh API.
