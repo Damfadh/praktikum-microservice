@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dashboard Akademik</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #172033;
+        background: #f4f6fa;
+      }
+      * { box-sizing: border-box; }
+      body { max-width: 1100px; margin: 0 auto; padding: 32px 20px 56px; }
+      header { margin-bottom: 24px; }
+      h1 { margin: 0 0 8px; font-size: clamp(1.8rem, 4vw, 2.5rem); letter-spacing: -0.04em; }
+      header p { margin: 0; color: #5b6475; }
+      section { margin-top: 20px; padding: 22px; border: 1px solid #e2e7ef; border-radius: 14px; background: #fff; box-shadow: 0 4px 18px #17203308; }
+      h2 { margin: 0 0 16px; font-size: 1.2rem; }
+      form { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+      input, select, button { min-height: 38px; padding: 8px 11px; border: 1px solid #cbd3df; border-radius: 8px; font: inherit; }
+      input, select { background: #fff; }
+      input:focus, select:focus, button:focus-visible { outline: 3px solid #8bb8ff; outline-offset: 1px; }
+      button { border-color: #2459c5; background: #2459c5; color: #fff; cursor: pointer; }
+      button:hover { background: #1948a8; }
+      button.secondary { border-color: #cbd3df; background: #fff; color: #26334a; }
+      button.secondary:hover { background: #f1f4f8; }
+      button.danger { border-color: #c43d4b; background: #fff; color: #a52836; }
+      button.danger:hover { background: #fff1f2; }
+      button:disabled, select:disabled { cursor: not-allowed; opacity: .55; }
+      .table-wrap { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 10px 9px; border-bottom: 1px solid #e8ecf2; text-align: left; vertical-align: middle; }
+      th { color: #5b6475; font-size: .82rem; font-weight: 650; }
+      td.actions { white-space: nowrap; }
+      td.actions button { margin-right: 5px; }
+      .message { min-height: 1.5em; margin: 12px 0 0; color: #a52836; }
+      .hint { margin: -8px 0 14px; color: #687386; font-size: .9rem; }
+      @media (max-width: 620px) {
+        body { padding: 20px 12px 36px; }
+        section { padding: 16px 12px; }
+        form > input, form > select { flex: 1 1 42%; min-width: 120px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Dashboard Akademik</h1>
+      <p>Kelola data mahasiswa, mata kuliah, dan pengambilan KRS.</p>
+      <p id="msg" class="message" role="status" aria-live="polite"></p>
+    </header>
+
+    <main>
+      <section aria-labelledby="mahasiswa-title">
+        <h2 id="mahasiswa-title">Mahasiswa</h2>
+        <form id="f-mhs">
+          <input name="nim" placeholder="NIM" aria-label="NIM" maxlength="15" required />
+          <input name="nama" placeholder="Nama" aria-label="Nama" maxlength="100" required />
+          <input name="email" type="email" placeholder="Email" aria-label="Email" maxlength="100" />
+          <input name="angkatan" type="number" placeholder="Angkatan" aria-label="Angkatan" />
+          <button type="submit">Tambah mahasiswa</button>
+        </form>
+        <div class="table-wrap"><table id="t-mhs"></table></div>
+      </section>
+
+      <section aria-labelledby="matkul-title">
+        <h2 id="matkul-title">Mata Kuliah</h2>
+        <form id="f-mk">
+          <input name="kode" placeholder="Kode" aria-label="Kode mata kuliah" maxlength="10" required />
+          <input name="nama" placeholder="Nama mata kuliah" aria-label="Nama mata kuliah" maxlength="100" required />
+          <input name="sks" type="number" min="1" placeholder="SKS" aria-label="SKS" required />
+          <input name="semester" type="number" min="1" placeholder="Semester" aria-label="Semester" />
+          <button type="submit">Tambah mata kuliah</button>
+        </form>
+        <div class="table-wrap"><table id="t-mk"></table></div>
+      </section>
+
+      <section aria-labelledby="krs-title">
+        <h2 id="krs-title">Pengambilan Mata Kuliah (KRS)</h2>
+        <p class="hint">Pilih mahasiswa dan mata kuliah, lalu tambahkan ke KRS.</p>
+        <form id="f-krs">
+          <select id="s-mhs" aria-label="Pilih mahasiswa" required></select>
+          <select id="s-mk" aria-label="Pilih mata kuliah" required></select>
+          <button id="b-ambil" type="submit">Ambil mata kuliah</button>
+        </form>
+        <div class="table-wrap"><table id="t-krs"></table></div>
+      </section>
+    </main>
+
+    <script>
+      const $ = (selector) => document.querySelector(selector);
+      const state = { mahasiswa: [], matkul: [], krs: [], selectedNim: "" };
+      const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      })[char]);
+
+      async function api(url, method = "GET", body) {
+        const options = { method, headers: {} };
+        if (body !== undefined) {
+          options.headers["Content-Type"] = "application/json";
+          options.body = JSON.stringify(body);
+        }
+        const response = await fetch(url, options);
+        const data = response.status === 204
+          ? {}
+          : await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `Permintaan gagal (${response.status})`);
+        return data;
+      }
+
+      function formData(form) {
+        return Object.fromEntries([...new FormData(form)].map(([key, value]) => {
+          const input = form.elements.namedItem(key);
+          return [key, input.type === "number" ? (value === "" ? null : Number(value)) : value];
+        }));
+      }
+
+      function setMessage(message = "") {
+        $("#msg").textContent = message;
+      }
+
+      async function run(action) {
+        setMessage();
+        try {
+          await action();
+          await load();
+        } catch (error) {
+          setMessage(error.message);
+        }
+      }
+
+      function renderMahasiswa() {
+        const table = $("#t-mhs");
+        table.innerHTML = `<thead><tr><th>NIM</th><th>Nama</th><th>Email</th><th>Angkatan</th><th>Aksi</th></tr></thead>
+          <tbody>${state.mahasiswa.length ? state.mahasiswa.map((m) => `<tr>
+            <td>${esc(m.nim)}</td><td>${esc(m.nama)}</td><td>${esc(m.email)}</td><td>${esc(m.angkatan)}</td>
+            <td class="actions"><button class="secondary" data-action="edit-mhs" data-nim="${esc(m.nim)}">Edit</button>
+            <button class="danger" data-action="delete-mhs" data-nim="${esc(m.nim)}">Hapus</button></td>
+          </tr>`).join("") : '<tr><td colspan="5">Belum ada data mahasiswa.</td></tr>'}</tbody>`;
+      }
+
+      function renderMatkul() {
+        const table = $("#t-mk");
+        table.innerHTML = `<thead><tr><th>Kode</th><th>Nama</th><th>SKS</th><th>Semester</th><th>Aksi</th></tr></thead>
+          <tbody>${state.matkul.length ? state.matkul.map((m) => `<tr>
+            <td>${esc(m.kode)}</td><td>${esc(m.nama)}</td><td>${esc(m.sks)}</td><td>${esc(m.semester)}</td>
+            <td class="actions"><button class="secondary" data-action="edit-mk" data-kode="${esc(m.kode)}">Edit</button>
+            <button class="danger" data-action="delete-mk" data-kode="${esc(m.kode)}">Hapus</button></td>
+          </tr>`).join("") : '<tr><td colspan="5">Belum ada data mata kuliah.</td></tr>'}</tbody>`;
+      }
+
+      async function loadKrs() {
+        const nim = $("#s-mhs").value;
+        if (!nim) {
+          state.krs = [];
+          $("#t-krs").innerHTML = "";
+          return;
+        }
+        state.selectedNim = nim;
+        state.krs = await api(`/mahasiswa/${encodeURIComponent(nim)}/matkul`);
+        $("#t-krs").innerHTML = `<thead><tr><th>Kode</th><th>Nama</th><th>SKS</th><th>Aksi</th></tr></thead>
+          <tbody>${state.krs.length ? state.krs.map((item) => `<tr>
+            <td>${esc(item.kode_mk)}</td><td>${esc(item.nama || item.catatan || "Detail tidak tersedia")}</td>
+            <td>${esc(item.sks)}</td><td class="actions"><button class="danger" data-action="cancel-krs" data-kode="${esc(item.kode_mk)}">Batalkan</button></td>
+          </tr>`).join("") : '<tr><td colspan="4">Belum ada mata kuliah yang diambil.</td></tr>'}</tbody>`;
+      }
+
+      async function load() {
+        const selectedNim = $("#s-mhs").value || state.selectedNim;
+        [state.mahasiswa, state.matkul] = await Promise.all([
+          api("/mahasiswa"), api("/matkul")
+        ]);
+        renderMahasiswa();
+        renderMatkul();
+
+        $("#s-mhs").innerHTML = state.mahasiswa.map((m) =>
+          `<option value="${esc(m.nim)}">${esc(m.nim)} — ${esc(m.nama)}</option>`
+        ).join("");
+        $("#s-mk").innerHTML = state.matkul.map((m) =>
+          `<option value="${esc(m.kode)}">${esc(m.kode)} — ${esc(m.nama)}</option>`
+        ).join("");
+        if (state.mahasiswa.some((m) => m.nim === selectedNim)) {
+          $("#s-mhs").value = selectedNim;
+        }
+        $("#s-mhs").disabled = state.mahasiswa.length === 0;
+        $("#s-mk").disabled = state.matkul.length === 0;
+        $("#b-ambil").disabled = state.mahasiswa.length === 0 || state.matkul.length === 0;
+        await loadKrs();
+      }
+
+      $("#f-mhs").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        run(async () => {
+          await api("/mahasiswa", "POST", formData(form));
+          form.reset();
+        });
+      });
+
+      $("#f-mk").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        run(async () => {
+          await api("/matkul", "POST", formData(form));
+          form.reset();
+        });
+      });
+
+      $("#f-krs").addEventListener("submit", (event) => {
+        event.preventDefault();
+        run(() => api(`/mahasiswa/${encodeURIComponent($("#s-mhs").value)}/matkul`, "POST", {
+          kode_mk: $("#s-mk").value
+        }));
+      });
+
+      $("#s-mhs").addEventListener("change", async () => {
+        setMessage();
+        try { await loadKrs(); } catch (error) { setMessage(error.message); }
+      });
+
+      document.addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-action]");
+        if (!button) return;
+        const { action, nim, kode } = button.dataset;
+
+        if (action === "edit-mhs") {
+          const mahasiswa = state.mahasiswa.find((item) => item.nim === nim);
+          const nama = prompt("Nama mahasiswa:", mahasiswa?.nama || "");
+          if (nama && nama.trim()) run(() => api(`/mahasiswa/${encodeURIComponent(nim)}`, "PUT", { nama: nama.trim() }));
+        } else if (action === "delete-mhs") {
+          if (confirm(`Hapus mahasiswa ${nim} beserta KRS-nya?`)) {
+            run(() => api(`/mahasiswa/${encodeURIComponent(nim)}`, "DELETE"));
+          }
+        } else if (action === "edit-mk") {
+          const matkul = state.matkul.find((item) => item.kode === kode);
+          const nama = prompt("Nama mata kuliah:", matkul?.nama || "");
+          if (nama && nama.trim()) run(() => api(`/matkul/${encodeURIComponent(kode)}`, "PUT", { nama: nama.trim() }));
+        } else if (action === "delete-mk") {
+          if (confirm(`Hapus mata kuliah ${kode}?`)) {
+            run(() => api(`/matkul/${encodeURIComponent(kode)}`, "DELETE"));
+          }
+        } else if (action === "cancel-krs") {
+          const selectedNim = $("#s-mhs").value;
+          run(() => api(`/mahasiswa/${encodeURIComponent(selectedNim)}/matkul/${encodeURIComponent(kode)}`, "DELETE"));
+        }
+      });
+
+      load().catch((error) => setMessage(error.message));
+    </script>
+  </body>
+</html>
